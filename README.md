@@ -12,7 +12,12 @@ Termes employés (agent, sous-agent, session, permission...) : voir `termes.md` 
 
 Sommaire:
 
-[[_TOC_]]
+- [Architecture du banc d'essai (OpenCode et kagent)](#architecture-du-banc-dessai-opencode-et-kagent)
+- [Introduction au codage agentique](#introduction-au-codage-agentique)
+- [Installation](#installation)
+- [Configuration des agents Ops](#configuration-des-agents-ops)
+- [Exemples d'utilisation](#exemples-dutilisation)
+- [Bonnes pratiques](#bonnes-pratiques)
 
 ## Architecture du banc d'essai (OpenCode et kagent)
 
