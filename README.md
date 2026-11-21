@@ -209,7 +209,19 @@ Observations :
 
 ## Bonnes pratiques
 
-1. Commencer en mode Plan
-2. Utiliser les sous-agents spécialisés
-3. Vérifier avant d'appliquer, OpenCode demande confirmation pour les commandes destructives, lisez avant de valider
-4. Itérer par petites étapes, décomposer en sous-tâches plutôt qu'un prompt complexe 
+**Commun**
+
+1. Mettre la sécurité dans le RBAC du cluster (lecture seule, pas d'accès aux Secrets) : les permissions dans la configuration de l'agent se contournent.
+2. Vérifier chaque protection par un test qui doit échouer (`./driver.sh conteneur`, `kagent/test-intrusion.sh`).
+3. Tester le couple modèle + outils avant de choisir un modèle, et rejouer le test plusieurs fois.
+4. Demander un diagnostic sans modification, puis appliquer le correctif soi-même.
+
+**OpenCode**
+
+5. Lancer OpenCode dans le conteneur durci dès qu'il touche un cluster.
+6. Nommer le sous-agent dans la consigne quand la délégation doit être certaine.
+
+**kagent**
+
+7. Appliquer `kagent/hardening/` avant le premier agent : par défaut, le serveur d'outils est administrateur du cluster et sans authentification.
+8. Autoriser le pod `atenet-egress` dans la NetworkPolicy : les appels d'outils passent par lui.
