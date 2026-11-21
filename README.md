@@ -191,9 +191,9 @@ Les pannes sont dans `bench/scenarios/outages.yaml`, les tests dans `bench/scena
 
 ```bash
 cd bench
-./driver.sh conteneur                         # 9 contrôles du conteneur durci, dont 5 négatifs
-MODE=conteneur FILTRE=diag-oom ./driver.sh tests   # un test OpenCode, en mode conteneur
-./repeat.sh diag-oom 3 essai1                 # rejoue un test 3 fois et garde chaque sortie
+./driver.sh conteneur
+MODE=conteneur FILTRE=diag-oom ./driver.sh tests
+./repeat.sh diag-oom 3 essai1
 ```
 
 Observations :
