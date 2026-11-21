@@ -164,13 +164,10 @@ kagent 1.x exige Kubernetes 1.37 ; sur le banc, il a son propre cluster kind et 
 
 ```bash
 export KUBECONFIG=~/kagent-lab/kubeconfig
-# CLI et installation dans le cluster (clé OpenAI factice : OpenRouter est branché ensuite, explicitement)
 bash ./get-kagent --version v1.0.1
 OPENAI_API_KEY=factice kagent install --namespace kagent
-# Clé OpenRouter et agents de diagnostic en lecture seule (gpt-oss-120b, et variante gpt-4.1-mini)
 read -rs CLE && kubectl create secret generic kagent-openrouter -n kagent --from-literal=PROVIDER_API_KEY="$CLE"
 kubectl apply -f kagent/agents/agent-restreint.yaml -f kagent/agents/agent-gpt41.yaml
-# Durcissement : serveur d'outils en lecture seule sans Secrets, port 8084 filtré
 kubectl apply -f kagent/hardening/rbac.yaml -f kagent/hardening/networkpolicy.yaml
 ```
 
@@ -199,7 +196,7 @@ MODE=conteneur FILTRE=diag-oom ./driver.sh tests   # un test OpenCode, en mode c
 ./repeat.sh diag-oom 3 essai1                 # rejoue un test 3 fois et garde chaque sortie
 ```
 
-Résultats mesurés (2026-11-21) :
+Observations :
 - même modèle `gpt-oss-120b` : diagnostic OOM réussi par OpenCode (outil shell) ; kagent boucle sur son outil
   structuré (93 appels mal formés sur 94) ; avec `gpt-4.1-mini`, kagent réussit 3/3. L'écart vient de l'ajustement
   entre le modèle et le schéma de l'outil ;
