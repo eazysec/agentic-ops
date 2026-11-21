@@ -1,0 +1,259 @@
+{
+  "provider": {
+    "local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Mon LLM Local",
+      "options": {
+        "baseURL": "{{LLM_BASE_URL}}",
+        "apiKey": "{{LLM_API_KEY}}"
+      },
+      "models": {
+        "Gpt-oss-120b": {
+          "name": "GPT OSS 120B",
+          // Prix en $ par million de tokens (OpenRouter, relevé le 2026-11-21) ; à mettre à 0 pour un LLM interne
+          "cost": { "input": 0.09, "output": 0.36 },
+          "options": {
+            "temperature": 0.3
+          }
+        }
+      }
+    }
+  },
+  "model": "local/Gpt-oss-120b",
+  "small_model": "local/Gpt-oss-120b",
+  // ══════════════════════════════════════════════════════════════════════════
+  // PERMISSIONS GLOBALES (défaut restrictif, override par agent)
+  // Ces permissions s'appliquent à TOUS les agents sauf override explicite
+  // ══════════════════════════════════════════════════════════════════════════
+  "permission": {
+    "edit": "ask",
+    "webfetch": "ask",
+    "doom_loop": "deny",
+    "external_directory": "deny",
+
+    // Bash global : uniquement lecture basique
+    // Les permissions spécifiques sont dans chaque agent
+    "bash": {
+      "*": "ask",
+
+      // Lecture universelle
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "less *": "allow",
+      "ls *": "allow",
+      "find *": "ask",
+      "grep *": "allow",
+      "awk *": "ask",
+      "sed -n *": "allow",
+      "wc *": "allow",
+      "sort *": "allow",
+      "uniq *": "allow",
+      "cut *": "allow",
+      "diff *": "allow",
+      "jq *": "allow",
+      "yq *": "allow",
+      "file *": "allow",
+      "stat *": "allow",
+      "tree *": "allow",
+      "which *": "allow",
+      "type *": "allow",
+      "pwd": "allow",
+      "whoami": "allow",
+      "id": "allow",
+      "date *": "allow",
+
+      // Git lecture (commun)
+      "git status*": "allow",
+      "git log*": "allow",
+      "git diff*": "allow",
+      "git show*": "allow",
+      "git branch*": "allow",
+      "git remote*": "allow",
+      "git rev-parse*": "allow",
+      "git ls-files*": "allow",
+      "git blame*": "allow",
+
+      // Git écriture : toujours ASK
+      "git add *": "ask",
+      "git commit *": "ask",
+      "git checkout *": "ask",
+      "git switch *": "ask",
+      "git stash*": "ask",
+      "git fetch*": "ask",
+      "git pull*": "ask",
+
+      // Git destructif : toujours DENY
+      "git push*": "deny",
+      "git reset*": "deny",
+      "git rebase*": "deny",
+      "git merge*": "deny",
+      "git cherry-pick*": "deny",
+      "git revert*": "deny",
+      "git clean*": "deny",
+
+      // Linters universels
+      "yamllint *": "allow",
+      "jsonlint *": "allow",
+      "shellcheck *": "allow",
+
+      // Commandes dangereuses : toujours DENY
+      "rm *": "deny",
+      "rmdir *": "deny",
+      "chmod *": "deny",
+      "chown *": "deny",
+      "sudo *": "deny",
+      "su *": "deny",
+      "kill *": "deny",
+      "pkill *": "deny",
+      "reboot*": "deny",
+      "shutdown*": "deny",
+      "dd *": "deny",
+      "mkfs*": "deny",
+      "fdisk*": "deny",
+      "parted*": "deny",
+
+      // Secrets : en dernier pour primer
+      "kubectl get secret*": "ask",
+      "kubectl get *secret*": "ask",
+      "kubectl config view --raw*": "deny",
+      "terraform show*": "ask",
+      "terraform state show*": "ask",
+      "terraform output*": "ask"
+    }
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // INSTRUCTIONS / RULES
+  // ══════════════════════════════════════════════════════════════════════════
+  "instructions": [
+    "AGENTS.md",
+    ".opencode/rules/*.md"
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COMPACTION & WATCHER
+  // ══════════════════════════════════════════════════════════════════════════
+  "compaction": {
+    "auto": true,
+    "prune": true
+  },
+
+  "watcher": {
+    "ignore": [
+      "node_modules/**",
+      ".git/**",
+      "dist/**",
+      "build/**",
+      "__pycache__/**",
+      "*.pyc",
+      ".terraform/**",
+      ".vagrant/**",
+      "*.tfstate*",
+      "venv/**",
+      ".venv/**",
+      "*.log"
+    ]
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONFIGURATION DES AGENTS
+  // ══════════════════════════════════════════════════════════════════════════
+  "agent": {
+    // ────────────────────────────────────────────────────────────────────────
+    // Désactiver les agents built-in qu'on remplace
+    // ────────────────────────────────────────────────────────────────────────
+    "build": {
+      "disable": true
+    },
+
+    // Plan reste utile en lecture seule totale
+    "plan": {
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "rm *": "deny",
+          "mv *": "deny",
+          "cp *": "deny",
+          "kubectl apply*": "deny",
+          "kubectl create*": "deny",
+          "kubectl delete*": "deny",
+          "helm install*": "deny",
+          "helm upgrade*": "deny",
+          "terraform apply*": "deny",
+          "ansible-playbook *": "deny"
+        }
+      }
+    },
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Agents primaires custom : permissions de task (sous-agents invocables)
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Container-Ops peut invoquer les sous-agents container-related
+    "container-ops": {
+      "permission": {
+        "task": {
+          "*": "deny",
+          // Sous-agents recommandés pour container-ops
+          "security-audit": "allow",
+          "troubleshoot": "allow",
+          "logs-analysis": "allow",
+          "iac-review": "allow",
+          // Peut déléguer à iaas-ops si besoin infra
+          "iaas-ops": "ask"
+        }
+      }
+    },
+
+    // IaaS-Ops peut invoquer les sous-agents infra-related
+    "iaas-ops": {
+      "permission": {
+        "task": {
+          "*": "deny",
+          "security-audit": "allow",
+          "iac-review": "allow",
+          "logs-analysis": "allow",
+          // Peut déléguer à container-ops si besoin K8s
+          "container-ops": "ask"
+        }
+      }
+    },
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Sous-agents : pas de task permissions (ne lancent pas d'autres agents)
+    // ────────────────────────────────────────────────────────────────────────
+    "security-audit": {
+      "permission": {
+        "task": {
+          "*": "deny"
+        }
+      }
+    },
+
+    "troubleshoot": {
+      "permission": {
+        "task": {
+          "*": "deny"
+        }
+      }
+    },
+
+    "logs-analysis": {
+      "permission": {
+        "task": {
+          "*": "deny"
+        }
+      }
+    },
+
+    "iac-review": {
+      "permission": {
+        "task": {
+          "*": "deny"
+        }
+      }
+    }
+  }
+}

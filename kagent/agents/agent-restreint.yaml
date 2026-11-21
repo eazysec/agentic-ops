@@ -1,0 +1,54 @@
+# Notre agent kagent : diagnostic Kubernetes en lecture seule, modèle gpt-oss-120b via OpenRouter.
+# Équivalent kagent de container-ops (OpenCode). Restriction d'outils au niveau de l'AgentTemplate.
+apiVersion: api.kagent.dev/v1alpha3
+kind: ModelConfig
+metadata:
+  name: openrouter-gptoss
+  namespace: kagent
+spec:
+  provider: OpenAI
+  model: openai/gpt-oss-120b
+  apiKeySecret: kagent-openrouter
+  apiKeySecretKey: PROVIDER_API_KEY
+  openAI:
+    baseUrl: https://openrouter.ai/api/v1
+    apiFormat: chatCompletions
+---
+apiVersion: api.kagent.dev/v1alpha3
+kind: AgentTemplate
+metadata:
+  name: diag-lecture
+  namespace: kagent
+spec:
+  description: Diagnostic Kubernetes en lecture seule
+  modelConfig:
+    name: openrouter-gptoss
+  systemPrompt: |
+    Tu es un expert Ops Kubernetes. Ton rôle : diagnostiquer des pannes de pods SANS rien modifier.
+    Démarche : lister les pods, décrire le pod en cause, lire ses événements et ses logs, puis conclure
+    sur la cause racine et proposer (sans l'appliquer) une commande de correction, avec les noms réels observés.
+    Tu es en lecture seule : tu ne crées, ne modifies ni ne supprimes aucune ressource.
+  tools:
+    - mcp:
+        server:
+          kind: RemoteMCPServer
+          name: kagent-tool-server
+        requireApproval: false
+        tools:
+          - k8s_get_resources
+          - k8s_describe_resource
+          - k8s_get_resource_yaml
+          - k8s_get_pod_logs
+          - k8s_get_events
+---
+apiVersion: api.kagent.dev/v1alpha3
+kind: Agent
+metadata:
+  name: diag-lecture
+  namespace: kagent
+spec:
+  harnessRef:
+    name: kagent-default
+  template:
+    ref:
+      name: diag-lecture

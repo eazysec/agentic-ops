@@ -1,0 +1,30 @@
+# Durcissement 1 : kagent-tools passe d'administrateur du cluster à lecture seule SANS Secrets.
+# On remplace les règles du ClusterRole existant (le ClusterRoleBinding, lui, ne change pas).
+# Liste explicite des ressources : ni "*", ni "secrets". Rejouer test-intrusion.sh ensuite (attendu : code 0).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kagent-tools-cluster-admin-role   # même nom : on écrase les règles en place
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, endpoints, configmaps, events, namespaces, nodes,
+                persistentvolumeclaims, persistentvolumes, replicationcontrollers, serviceaccounts, resourcequotas, limitranges]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [get, list, watch]
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods, nodes]
+    verbs: [get, list]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings, clusterroles, clusterrolebindings]
+    verbs: [get, list, watch]

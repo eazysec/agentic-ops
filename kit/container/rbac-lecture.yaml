@@ -1,0 +1,43 @@
+# Compte de service de l'agent : lecture seule, SANS Secrets.
+# Liste explicite des ressources : un « resources: ["*"] » inclurait les Secrets.
+apiVersion: v1
+kind: Namespace
+metadata: {name: opencode-agent}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: opencode-lecture, namespace: opencode-agent}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: opencode-lecture}
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, endpoints, configmaps, events, namespaces, nodes,
+                persistentvolumeclaims, persistentvolumes, replicationcontrollers, serviceaccounts, resourcequotas, limitranges]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [get, list, watch]
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods, nodes]
+    verbs: [get, list]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings, clusterroles, clusterrolebindings]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: opencode-lecture}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: opencode-lecture}
+subjects:
+  - {kind: ServiceAccount, name: opencode-lecture, namespace: opencode-agent}

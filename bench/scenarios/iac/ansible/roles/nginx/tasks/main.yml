@@ -1,0 +1,11 @@
+# Défauts VOLONTAIRES : tâche sans nom, shell au lieu d'un module, mot de passe en clair, droits 777
+- shell: apt-get install -y nginx
+- name: Copier la configuration
+  copy:
+    src: nginx.conf
+    dest: /etc/nginx/nginx.conf
+    mode: "0777"
+- name: Créer l'utilisateur admin
+  user:
+    name: admin
+    password: "admin123"

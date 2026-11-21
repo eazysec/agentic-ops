@@ -1,0 +1,21 @@
+# Matériel interne, non publié (dépôt privé) : journal des commandes (adresses, traces de session)
+# et article tiers (droits d'auteur). Tout le dossier docs/references/ est exclu du dépôt public.
+docs/references/
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+
+# Clés et secrets
+*_key
+*_key.pub
+*.pem
+.env
+.env.*
+
+# Système
+.DS_Store
+
+# Passations de session (contexte interne)
+handoffs/
