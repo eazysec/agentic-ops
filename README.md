@@ -193,7 +193,7 @@ Les pannes sont dans `bench/scenarios/outages.yaml`, les tests dans `bench/scena
 cd bench
 ./driver.sh conteneur
 MODE=conteneur FILTRE=diag-oom ./driver.sh tests
-./repeat.sh diag-oom 3 essai1
+./repeat.sh obs-deleg-auto 3 essai1
 ```
 
 Observations :
