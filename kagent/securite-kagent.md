@@ -105,8 +105,8 @@ Démarche :
 Lancement :
 
 ```bash
-export KUBECONFIG=~/opencode/kagent/kubeconfig
-~/opencode/kagent/test-intrusion.sh ; echo "code=$?"
+export KUBECONFIG=~/kagent-lab/kubeconfig
+./kagent/test-intrusion.sh ; echo "code=$?"
 ```
 
 Lecture du résultat (c'est un **test négatif** : il doit échouer avant le durcissement) :
@@ -139,13 +139,13 @@ Objectif : que le test de la partie 3 passe de `1` à `0`, sans empêcher un age
 > lui, est indépendant du réseau : c'est pourquoi il reste la barrière principale.
 
 Fichiers : [hardening/rbac.yaml](hardening/rbac.yaml), [hardening/networkpolicy.yaml](hardening/networkpolicy.yaml).
-Sauvegarde de l'état d'origine avant modification : `~/opencode/kagent/avant-durcissement/`.
+Sauvegarde de l'état d'origine avant modification : `~/kagent-lab/avant-durcissement/` (sur l'instance).
 
 ```bash
-export KUBECONFIG=~/opencode/kagent/kubeconfig
-kubectl137 apply -f ~/opencode/kagent/hardening/rbac.yaml
-kubectl137 apply -f ~/opencode/kagent/hardening/networkpolicy.yaml
-~/opencode/kagent/test-intrusion.sh ; echo "code=$?"   # attendu : 0
+export KUBECONFIG=~/kagent-lab/kubeconfig
+kubectl137 apply -f kagent/hardening/rbac.yaml
+kubectl137 apply -f kagent/hardening/networkpolicy.yaml
+./kagent/test-intrusion.sh ; echo "code=$?"   # attendu : 0
 ```
 
 ### Résultats mesurés (2026-11-21)
