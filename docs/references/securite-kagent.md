@@ -91,7 +91,7 @@ Conséquence : **tout pod du cluster** peut appeler le serveur d'outils et agir 
 
 ## 3. Test d'intrusion rejouable
 
-Script : [test-intrusion.sh](test-intrusion.sh). Il mesure si un pod **sans aucun droit** lit un Secret d'un autre namespace via `kagent-tools`.
+Script : [test-intrusion.sh](../../kagent/test-intrusion.sh). Il mesure si un pod **sans aucun droit** lit un Secret d'un autre namespace via `kagent-tools`.
 
 Démarche :
 1. créer 2 namespaces jetables : `test-intrus-kagent` (l'attaquant), `test-cible-kagent` (la victime) ;
@@ -138,7 +138,7 @@ Objectif : que le test de la partie 3 passe de `1` à `0`, sans empêcher un age
 > sortie. Une NetworkPolicy écrite « à l'instinct » bloque le chemin légitime en même temps que l'intrus. Le RBAC,
 > lui, est indépendant du réseau : c'est pourquoi il reste la barrière principale.
 
-Fichiers : [hardening/rbac.yaml](hardening/rbac.yaml), [hardening/networkpolicy.yaml](hardening/networkpolicy.yaml).
+Fichiers : [hardening/rbac.yaml](../../kagent/hardening/rbac.yaml), [hardening/networkpolicy.yaml](../../kagent/hardening/networkpolicy.yaml).
 Sauvegarde de l'état d'origine avant modification : `~/kagent-lab/avant-durcissement/` (sur l'instance).
 
 ```bash
@@ -170,6 +170,35 @@ Tous les CNI ne l'appliquent pas : le RBAC (lecture seule, sans Secrets) reste l
 
 Limite connue : ces changements sont appliqués dans le cluster, mais le chart Helm de kagent peut les réécrire lors
 d'une mise à jour. La bonne place est un fichier de valeurs du chart, si le chart l'autorise (à vérifier).
+
+## Architecture cible pour authentifier le flux MCP avec ActorJWT
+
+Le flux actuel passe par `atenet-egress`, la passerelle de sortie de Substrate qui utilise AgentGateway. Pour la démo, le flux cible ajoute **une instance de proxy distincte** devant `kagent-tools`. Cette instance peut aussi utiliser AgentGateway. Les deux instances ont des rôles différents.
+
+```text
+Agents diag-lecture et diag-lecture-gpt41
+  │ Appel MCP vers le RemoteMCPServer configuré avec actorJwt
+  ▼
+atenet-egress (AgentGateway existant, namespace ate-system)
+  │ Injecte Authorization: Bearer <Actor JWT> pour l’audience du serveur MCP
+  ▼
+Proxy MCP interne (seconde instance d’AgentGateway dans la cible)
+  │ Valide le JWT avec les clés publiques de l’IdP Substrate (JWKS sur HTTPS)
+  │ Transmet uniquement les requêtes authentifiées
+  ▼
+kagent-tools:8084
+  │ Appelle Kubernetes avec le compte de service kagent-tools
+  ▼
+API Kubernetes du cluster kagent (RBAC en lecture seule)
+```
+
+- **Émission et injection.** Le `RemoteMCPServer` pointe vers le proxy et demande un jeton pour une audience dédiée, par exemple `kagent-tools-mcp`. Substrate émet le jeton de l’Actor d’exécution et `atenet-egress` l’ajoute à la requête MCP.
+- **Validation à l’entrée.** Le proxy vérifie la signature, l’émetteur, l’audience et l’expiration, avec la CA interne pour joindre l’IdP. Il refuse les requêtes sans jeton valide. La politique réseau cible réserve l’accès à `kagent-tools:8084` aux pods de ce proxy.
+- **Autorisation Kubernetes.** Le compte de service `kagent-tools` et son RBAC contrôlent les lectures auprès de l’API Kubernetes. Le JWT de l’Actor sert à authentifier l’appel MCP. Une restriction aux deux agents nommés demanderait également une politique d’autorisation fondée sur leur identité.
+
+Cette architecture est proposée. Le banc vérifié utilise encore le serveur MCP direct et sa politique réseau actuelle. Pour valider la cible, vérifier la découverte des outils depuis une session réelle, la réussite d’une lecture MCP autorisée, le refus sans JWT et la fermeture de l’accès direct à `8084`.
+
+[Injection ActorJWT dans kagent](https://github.com/kagent-dev/kagent/pull/3359) · [Vérification des jetons Substrate](https://ate.dev/docs/guides/actor-jwts/)
 
 ## 5. À retenir (pour l'article)
 

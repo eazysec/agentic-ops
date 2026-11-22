@@ -33,7 +33,7 @@ Ce dépôt sert aussi de banc de comparaison entre **OpenCode** (agent sur le po
 le cluster). Tout tourne sur **une seule instance EC2** (jetable, Spot, us-east-1), qui héberge Docker et **2 clusters
 kind** indépendants. Le LLM (`gpt-oss-120b` et, pour comparaison, `gpt-4.1-mini`) est appelé chez **OpenRouter**, à
 l'extérieur. Détails : `comparaison-opencode-kagent.md` (dépôt privé),
-[kagent/securite-kagent.md](kagent/securite-kagent.md).
+[Sécurité de kagent](docs/references/securite-kagent.md).
 
 ```
                         ┌──────────────────────────────────────────────────────┐
@@ -199,7 +199,7 @@ kagent agent invoke --session "$SID" -o json \
 
 Vérifier le durcissement : `KUBECONFIG=~/kagent-lab/kubeconfig ./kagent/test-intrusion.sh` (code 0 : un pod sans
 droits ne peut pas lire un Secret par le serveur d'outils ; code 1 : risque présent). Détails :
-[kagent/securite-kagent.md](kagent/securite-kagent.md).
+[Sécurité de kagent](docs/references/securite-kagent.md).
 
 ## Banc d'essai et résultats
 
