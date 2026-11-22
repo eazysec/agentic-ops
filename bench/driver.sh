@@ -79,8 +79,8 @@ iaas() {
 
 # OpenCode en conteneur durci : image, compte de service en lecture seule, contrôles (positifs et négatifs)
 conteneur() {
-    local C="${KIT}/kit/container" B
-    sg docker -c "docker build -q -t opencode-ops:1.1.36 -f ${C}/Dockerfile ${KIT}/kit" >/dev/null || echec "construction de l'image"
+    local C="${KIT}/opencode/container" B
+    sg docker -c "docker build -q -t opencode-ops:1.1.36 -f ${C}/Dockerfile ${KIT}/opencode" >/dev/null || echec "construction de l'image"
     kubectl apply -f "${C}/rbac-lecture.yaml" >/dev/null || echec "droits Kubernetes"
     B=$(printf "%s" "NE-DOIT-PAS-APPARAITRE-DANS-LA-REPONSE" | base64 -w0)
     local ko=0 nom cmd attendu
@@ -107,7 +107,7 @@ LISTE
 }
 
 opencode() {
-    bash "${KIT}/kit/install_opencode.sh" --base-url "$LLM_BASE_URL" --model "$LLM_MODEL"
+    bash "${KIT}/opencode/install_opencode.sh" --base-url "$LLM_BASE_URL" --model "$LLM_MODEL"
     command opencode --version || echec "opencode ne démarre pas"
     ok "OpenCode installé"
 }
@@ -158,13 +158,13 @@ PY
 # Chaque test : nom | agent | consigne | texte qui doit apparaître | texte qui ne doit PAS apparaître
 tests() {
     local nb=0 rates=0 nom agent consigne attendu interdit sortie
-    # Lancer hors du kit : sinon OpenCode lit ~/opencode/opencode.json (modèle avec {{...}}) au lieu de la config installée
+    # Utiliser le dossier de travail du banc pour lancer OpenCode avec la configuration installée
     mkdir -p "${HOME}/banc-travail" && cd "${HOME}/banc-travail"
-    # MODE=direct (défaut) : OpenCode installé sur la machine ; MODE=conteneur : via kit/container/lancer.sh
+    # MODE=direct (défaut) : OpenCode installé sur la machine ; MODE=conteneur : via opencode/container/lancer.sh
     local mode="${MODE:-direct}" lanceur
     case "$mode" in
         direct)    lanceur="$(type -P opencode)"; STOCKAGE="${HOME}/.local/share/opencode/storage" ;;
-        conteneur) lanceur="${KIT}/kit/container/lancer.sh"; STOCKAGE="${HOME}/.opencode-conteneur/historique/storage" ;;
+        conteneur) lanceur="${KIT}/opencode/container/lancer.sh"; STOCKAGE="${HOME}/.opencode-conteneur/historique/storage" ;;
         *) echec "MODE inconnu : $mode (direct ou conteneur)" ;;
     esac
     JOURNAUX="${ICI}/journaux/${mode}"; mkdir -p "$JOURNAUX"

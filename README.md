@@ -106,7 +106,7 @@ Si un pod redémarre dans le namespace `banc` du cluster `kagent`, le pod de tes
 git clone https://github.com/eazysec/agentic-ops.git
 cd agentic-ops
 read -rs LLM_API_KEY && export LLM_API_KEY
-bash kit/install_opencode.sh --base-url "https://api.llm:8080/v1" --proxy "http://proxy.infra.acme:3128"
+bash opencode/install_opencode.sh --base-url "https://api.llm:8080/v1" --proxy "http://proxy.infra.acme:3128"
 cd .. && opencode
 ```
 
@@ -116,8 +116,8 @@ Le script :
 3. Déploie les agents Ops personnalisés
 
 Variante conteneurisée et durcie (non-root, image en lecture seule, AppArmor, compte Kubernetes en lecture seule sans
-Secrets) : `kit/container/lancer.sh`, qui s'emploie comme `opencode`
-(`kit/container/lancer.sh run --agent container-ops "..."`).
+Secrets) : `opencode/container/lancer.sh`, qui s'emploie comme `opencode`
+(`opencode/container/lancer.sh run --agent container-ops "..."`).
 
 ## Configuration des agents Ops
 

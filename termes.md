@@ -16,4 +16,4 @@ Appel d’un sous-agent par un agent principal via l’outil `task`. La déléga
 
 ### Profil d’agent
 
-Dans ce kit, fichier Markdown qui décrit la configuration d’un agent. L’en-tête indique notamment son mode (`primary` ou `subagent`), le modèle et les permissions déclarées. Le corps du fichier contient les consignes métier. Par exemple, [le profil de `container-ops`](kit/agents/container-ops.md) décrit comment diagnostiquer un incident Kubernetes. Plusieurs profils peuvent utiliser le même modèle avec des consignes différentes.
+Dans ce kit, fichier Markdown qui décrit la configuration d’un agent. L’en-tête indique notamment son mode (`primary` ou `subagent`), le modèle et les permissions déclarées. Le corps du fichier contient les consignes métier. Par exemple, [le profil de `container-ops`](opencode/agents/container-ops.md) décrit comment diagnostiquer un incident Kubernetes. Plusieurs profils peuvent utiliser le même modèle avec des consignes différentes.
