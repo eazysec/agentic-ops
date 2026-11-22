@@ -4,9 +4,7 @@ Ce document décrit un risque de sécurité **constaté** sur une installation d
 le **test rejouable** qui le prouve, et les **mesures de durcissement** pour le traiter.
 
 > Cadre : banc d'essai jetable, cluster kind `kagent`, aucun secret réel, aucun environnement de production.
-> But : sensibiliser aux risques d'un serveur d'outils d'agent IA, et montrer de bonnes pratiques. Comparé au banc OpenCode.
-
-Les termes (RBAC, compte de service, MCP, NetworkPolicy...) sont définis dans `termes.md` (dépôt privé).
+> Le banc compare aussi cette architecture avec OpenCode en conteneur. [Vue d’ensemble du banc](../../README.md)
 
 ## 1. Contexte
 
@@ -56,7 +54,7 @@ Conséquences pour le durcissement :
 - un pod intrus qui atteint le port 8084 (saut 1) fait exécuter n'importe quel outil par `kagent-tools` : **d'où la
   NetworkPolicy (durcissement 2)**, qui doit autoriser `kagent` et la passerelle `atenet-egress`, et refuser le reste.
 
-### Les couches de contrôle (et lesquelles manquent)
+### Les couches de contrôle avant ActorJWT
 
 Protéger un serveur d'outils ne se résume pas à une barrière. Il y a plusieurs couches, indépendantes, et il faut
 savoir ce que chacune sait faire. Le filtrage réseau, par exemple, garde la porte mais ne dit pas qui entre.
@@ -105,7 +103,7 @@ Démarche :
 Lancement :
 
 ```bash
-export KUBECONFIG=~/kagent-lab/kubeconfig
+# Sélectionner le kubeconfig du cluster kagent avant de lancer la commande.
 ./kagent/test-intrusion.sh ; echo "code=$?"
 ```
 
@@ -120,6 +118,9 @@ Résultats mesurés (2026-11-21) : **avant durcissement**, code `1`, le secret t
 alors que le pod n'avait aucun droit ; **après durcissement** (partie 4), code `0`, lecture refusée. Le nettoyage ne laisse aucune trace (contrôle indépendant).
 
 ## 4. Mesures de durcissement
+
+Les étapes ci-dessous décrivent le premier durcissement, avant ActorJWT. Pour installer l’état actuel du banc,
+suivre [l’ordre de déploiement dans le README](../../README.md#kagent--installation-et-exemples).
 
 Objectif : que le test de la partie 3 passe de `1` à `0`, sans empêcher un agent de diagnostiquer.
 
@@ -138,17 +139,14 @@ Objectif : que le test de la partie 3 passe de `1` à `0`, sans empêcher un age
 > sortie. Une NetworkPolicy écrite « à l'instinct » bloque le chemin légitime en même temps que l'intrus. Le RBAC,
 > lui, est indépendant du réseau : c'est pourquoi il reste la barrière principale.
 
-Fichiers : [hardening/rbac.yaml](../../kagent/hardening/rbac.yaml), [hardening/networkpolicy.yaml](../../kagent/hardening/networkpolicy.yaml).
-Sauvegarde de l'état d'origine avant modification : `~/kagent-lab/avant-durcissement/` (sur l'instance).
+Le [manifeste RBAC](../../kagent/hardening/rbac.yaml) est toujours utilisé. La
+[politique réseau suivie dans le dépôt](../../kagent/hardening/networkpolicy.yaml) correspond désormais
+à l’état après la bascule ActorJWT.
 
-```bash
-export KUBECONFIG=~/kagent-lab/kubeconfig
-kubectl137 apply -f kagent/hardening/rbac.yaml
-kubectl137 apply -f kagent/hardening/networkpolicy.yaml
-./kagent/test-intrusion.sh ; echo "code=$?"   # attendu : 0
-```
+### Résultats mesurés à date du commit
 
-### Résultats mesurés (2026-11-21)
+Le tableau compare l’installation par défaut au premier durcissement RBAC et réseau, avant l’ajout d’ActorJWT.
+Les vérifications effectuées après la bascule ActorJWT figurent dans la section suivante.
 
 | Contrôle | Avant | Après |
 |----------|-------|-------|
@@ -198,14 +196,24 @@ API Kubernetes du cluster kagent (RBAC en lecture seule)
 
 Sur le banc, Agent Substrate fournit déjà un IdP interne dans `ate-system`. Le proxy utilise le bundle de
 confiance Kubernetes des certificats DNS de Substrate pour récupérer son JWKS sur HTTPS. Les appels MCP
-internes du banc restent sur HTTP. Les ressources à déployer et les tests de reprise sont dans le
-[répertoire ActorJWT](../../kagent/hardening/actorjwt/).
+internes du banc restent sur HTTP. Les [manifestes de déploiement](../../kagent/hardening/actorjwt/) et les [tests de validation](../../kagent/tests/actorjwt/) sont versionnés séparément.
 
 [Injection ActorJWT dans kagent](https://github.com/kagent-dev/kagent/pull/3359) · [Vérification des jetons Substrate](https://ate.dev/docs/guides/actor-jwts/)
 
-## 5. À retenir (pour l'article)
+## 5. À retenir
 
-- Un serveur d'outils d'agent est un **point de concentration de privilèges** : ses droits comptent plus que ceux de l'agent.
-- Les garde-fous « côté agent » (liste d'outils, validation humaine) ne remplacent pas le RBAC et le filtrage réseau.
-- Le modèle « agent dans le cluster » rapproche l'outil des ressources sensibles : l'isolation réseau devient essentielle.
-- À comparer au modèle « agent conteneurisé sur le poste » (OpenCode) : `GUIDE.md` (dépôt privé), étape 10 bis.
+- **kagent-tools fixe le périmètre Kubernetes des appels transmis.** Sur le banc, son compte de service peut
+  lire les pods et leurs logs, et Kubernetes refuse la lecture directe des Secrets ainsi que la modification des
+  Deployments. Les logs et les ConfigMaps restent des sources potentiellement sensibles. La liste d’outils
+  d’un agent intervient côté client, tandis que le RBAC s’applique aux opérations du serveur.
+- **La protection du flux MCP combine deux contrôles distincts.** Le proxy a refusé une requête sans jeton
+  avec HTTP 401, et les deux agents ont lu les événements via le parcours authentifié. Une sonde distincte
+  a confirmé le blocage du port direct depuis un pod du namespace `kagent` auparavant autorisé. Le test
+  du proxy sur backend factice a aussi couvert les jetons invalides et vérifié que le jeton valide est retiré
+  avant transmission.
+- **ActorJWT authentifie l’Actor de la session.** La configuration du banc valide l’émetteur et l’audience.
+  Une politique supplémentaire serait nécessaire pour réserver le service aux deux agents nommés ou
+  attribuer des droits distincts à chacun. Les deux agents partagent le compte Kubernetes de `kagent-tools`.
+- **La portée du résultat dépend de la configuration déployée.** Les mesures concernent ce banc kind, avec
+  kindnet et des flux MCP internes en HTTP. La réapplication des manifestes a été vérifiée. Une mise à jour
+  Helm et un retour arrière complet restent à rejouer avant de considérer cette configuration comme durable.
