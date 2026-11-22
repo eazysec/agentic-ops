@@ -19,6 +19,7 @@ spécialisés (agents principaux Plan/Build, sous-agents) : voir `introduction-a
 Sommaire:
 
 - [Architecture du banc d'essai (OpenCode et kagent)](#architecture-du-banc-dessai-opencode-et-kagent)
+  - [Comparaison des deux outils](#comparaison-des-deux-outils)
 - [Installation](#installation)
 - [Configuration des agents Ops](#configuration-des-agents-ops)
 - [Exemples d'utilisation](#exemples-dutilisation)
@@ -83,8 +84,24 @@ l'extérieur. Détails : `comparaison-opencode-kagent.md` (dépôt privé),
   du namespace `kubernetes.io/metadata.name: ate-system` (le chemin légitime des appels d'outils) ;
 - tout le reste est refusé (vérifié : un pod d'un autre namespace tombe en timeout).
 
-> Les 2 clusters sont séparés : `banc` (K8s 1.31) pour OpenCode, `kagent` (K8s 1.37, exigé par kagent 1.x) pour kagent.
-> Chacun a son propre `kubectl` et son contexte ; kagent utilise un fichier de connexion dédié.
+### Comparaison des deux outils
+
+Chaque outil diagnostique les pods de test de son propre cluster. Le cluster `banc` utilise Kubernetes 1.31 et le cluster `kagent` utilise Kubernetes 1.37, la version requise par kagent 1.x dans ce banc. Chaque outil a son propre contexte `kubectl`. kagent utilise un fichier de connexion dédié.
+
+```text
+Cluster banc                  ← OpenCode interroge cette API Kubernetes
+└── Namespace banc
+    └── Pods de test côté OpenCode
+
+Cluster kagent                ← kagent-tools interroge cette API Kubernetes
+├── Namespace kagent
+│   └── Agent et serveur d’outils kagent
+└── Namespace banc
+    └── Pods de test côté kagent
+```
+
+**Le nom `banc` désigne à la fois le cluster interrogé par OpenCode et un namespace présent dans chacun des deux clusters.**
+Si un pod redémarre dans le namespace `banc` du cluster `kagent`, le pod de test du cluster `banc` continue de tourner indépendamment.
 
 ## Installation
 
@@ -200,8 +217,7 @@ Observations :
 - même modèle `gpt-oss-120b` : diagnostic OOM réussi par OpenCode (outil shell) ; kagent boucle sur son outil
   structuré (93 appels mal formés sur 94) ; avec `gpt-4.1-mini`, kagent réussit 3/3. L'écart vient de l'ajustement
   entre le modèle et le schéma de l'outil ;
-- les permissions d'OpenCode ne suffisent pas (`kubectl get all,secrets` contourne la règle sur les Secrets) : seul le
-  RBAC du cluster tient ;
+- les permissions d'OpenCode ne suffisent pas (`kubectl get all,secrets` contourne la règle sur les Secrets) : seul le RBAC du cluster tient ;
 - l'installation par défaut de kagent expose un serveur d'outils administrateur du cluster sans authentification ;
   RBAC + NetworkPolicy le corrigent (`test-intrusion.sh`).
 
