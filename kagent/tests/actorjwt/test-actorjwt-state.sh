@@ -7,7 +7,7 @@ kubectl_bin=${KUBECTL:-kubectl137}
 namespace=${KAGENT_NAMESPACE:-kagent}
 workload_namespace=${WORKLOAD_NAMESPACE:-banc}
 server=${MCP_SERVER:-kagent-tools-authenticated}
-audience=${MCP_AUDIENCE:-kagent-tools-mcp}
+audience=${MCP_AUDIENCE:-kagent-tools-mcp kagent-agent-info}
 proxy_url=${MCP_PROXY_URL:-http://kagent-mcp-auth.kagent.svc.cluster.local:8080/mcp}
 if (( $# == 0 )); then
     set -- diag-lecture diag-lecture-gpt41

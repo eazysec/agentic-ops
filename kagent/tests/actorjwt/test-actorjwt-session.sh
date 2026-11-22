@@ -7,6 +7,9 @@ namespace=${KAGENT_NAMESPACE:-kagent}
 workload_namespace=${WORKLOAD_NAMESPACE:-banc}
 kubectl_bin=${KUBECTL:-kubectl137}
 port=${KAGENT_LOCAL_PORT:-18083}
+proxy_deployment=${MCP_PROXY_DEPLOYMENT:-kagent-mcp-auth}
+expect=${MCP_EXPECT:-allow}
+case "$expect" in allow|deny) ;; *) printf 'MCP_EXPECT must be allow or deny\n' >&2; exit 2 ;; esac
 work=$(mktemp -d)
 "$kubectl_bin" -n "$namespace" port-forward svc/kagent-controller "$port:8083" >"$work/forward" 2>&1 &
 forward=$!
@@ -36,8 +39,21 @@ fi
 
 session=$(call_kagent agent session create --agent "$agent" -o json |
     python3 -c 'import json,sys; print(json.load(sys.stdin)["session"]["id"])')
+invoke_status=0
 call_kagent agent invoke --session "$session" -o json \
-    --task "Appelle k8s_get_events avec uniquement namespace=${workload_namespace}. Résume les événements lus." >"$work/result"
+    --task "Appelle k8s_get_events avec uniquement namespace=${workload_namespace}. Résume les événements lus." >"$work/result" || invoke_status=$?
+if [[ "$expect" == deny ]]; then
+    "$kubectl_bin" -n "$namespace" logs "deployment/$proxy_deployment" -c gateway --since=5m >"$work/proxy"
+    grep -F "jwt.sub=actor/$namespace/session-$session " "$work/proxy" >"$work/session-proxy"
+    grep -E 'http.path=/mcp .*http.status=403' "$work/session-proxy" >/dev/null
+    if grep -E 'http.path=/mcp .*http.status=2[0-9][0-9]' "$work/session-proxy"; then
+        printf 'Unexpected MCP success for denied agent %s\n' "$agent" >&2
+        exit 1
+    fi
+    printf 'OK authenticated MCP request denied for %s (session %s)\n' "$agent" "$session"
+    exit 0
+fi
+(( invoke_status == 0 )) || exit "$invoke_status"
 python3 - "$work/result" <<'PY'
 import json
 import sys
@@ -61,7 +77,7 @@ for artifact in task.get("artifacts", []):
             sys.exit(0)
 sys.exit("No successful Kubernetes event-list tool response")
 PY
-"$kubectl_bin" -n "$namespace" logs deployment/kagent-mcp-auth --since=5m >"$work/proxy"
+"$kubectl_bin" -n "$namespace" logs "deployment/$proxy_deployment" -c gateway --since=5m >"$work/proxy"
 if ! grep -F "jwt.sub=actor/$namespace/session-$session " "$work/proxy" |
     grep -E 'http.method=POST .*http.path=/mcp .*http.status=200' >"$work/session-proxy"; then
     printf 'No authenticated MCP trace for %s (session %s)\n' "$agent" "$session" >&2

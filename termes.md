@@ -17,3 +17,41 @@ Appel d’un sous-agent par un agent principal via l’outil `task`. La déléga
 ### Profil d’agent
 
 Dans ce kit, fichier Markdown qui décrit la configuration d’un agent. L’en-tête indique notamment son mode (`primary` ou `subagent`), le modèle et les permissions déclarées. Le corps du fichier contient les consignes métier. Par exemple, [le profil de `container-ops`](opencode/agents/container-ops.md) décrit comment diagnostiquer un incident Kubernetes. Plusieurs profils peuvent utiliser le même modèle avec des consignes différentes.
+
+## Identité et contrôle d’accès
+
+### Authentification
+
+Vérification de l’identité d’un appelant. Un service peut vérifier un jeton signé pour identifier l’appelant.
+
+### Autorisation
+
+Décision qui accorde ou refuse une action à une identité. Une politique d’accès précise quels appelants peuvent effectuer quelles actions sur quelles ressources.
+
+### Fournisseur d’identité (IdP)
+
+Service qui établit ou publie les éléments de confiance utilisés pour vérifier une identité. Dans une architecture à jetons, il peut publier les clés publiques de signature utilisées par les services destinataires.
+
+### Audience d’un jeton
+
+Identifiant d’un service ou d’un usage auquel un jeton est destiné. Le destinataire compare l’audience portée par le jeton à celle qu’il attend.
+
+### JWKS
+
+Ensemble de clés au format JSON Web Key Set. Dans le banc, l’IdP publie les clés publiques que le proxy utilise pour vérifier les signatures des jetons.
+
+### [Agent Substrate] Actor
+
+Instance d’exécution isolée qui porte une identité propre. Dans le banc kagent, un Actor exécute une session. Son identité apparaît dans le sujet du jeton sous une forme telle que `actor/kagent/session-…`.
+
+### [Agent Substrate] ActorJWT
+
+Jeton JWT signé par Agent Substrate qui atteste l’identité de l’Actor et indique son audience. La passerelle `atenet-egress` peut l’injecter dans une requête MCP. L’IdP Substrate publie les clés qui permettent au destinataire de le vérifier.
+
+### [kagent] Agent
+
+Ressource Kubernetes nommée qui associe une configuration `AgentTemplate` à un environnement d’exécution `Harness`. Dans le banc, `kagent/diag-lecture-gpt41` désigne l’Agent `diag-lecture-gpt41` dans le namespace `kagent`.
+
+### [kagent] Contrôleur
+
+Composant existant `kagent-controller` qui gère les agents et les sessions. Son API `ResolveAgentIdentity` permet de retrouver l’Agent rattaché à l’Actor d’une session à partir d’un jeton destiné à cette résolution.

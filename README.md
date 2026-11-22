@@ -65,8 +65,9 @@ l'extérieur. Détails : `comparaison-opencode-kagent.md` (dépôt privé),
 - **OpenCode** parle au cluster `banc` par `kubectl` (lecture seule via le compte `opencode-lecture` en mode conteneur),
   et au LLM par HTTPS **direct** vers OpenRouter.
 - **kagent, appels d’outils** : `atenet-egress` injecte le JWT de l’Actor dans l’appel MCP. Le proxy interne
-  `kagent-mcp-auth` le valide et transmet la requête à `kagent-tools`. Ce dernier interroge l’API Kubernetes avec
-  son compte de service.
+  `kagent-mcp-auth` le valide. Son conteneur d’autorisation appelle `kagent-controller` pour retrouver l’Agent
+  associé, puis applique la liste d’accès. `kagent-tools` reçoit les requêtes autorisées et interroge
+  l’API Kubernetes avec son compte de service.
 - **kagent, raisonnement du modèle** : l'appel au LLM de l'agent sort **aussi** par `atenet-egress` vers OpenRouter,
   parce que le bac à sable force **toute** sa sortie (vers un service interne comme vers Internet) par cette passerelle.
 
@@ -79,7 +80,7 @@ l'extérieur. Détails : `comparaison-opencode-kagent.md` (dépôt privé),
 
 La [NetworkPolicy de kagent](kagent/hardening/networkpolicy.yaml) réserve l’accès direct à
 `kagent-tools:8084` aux pods du proxy `kagent-mcp-auth`. Le proxy exige un ActorJWT valide pour l’audience
-`kagent-tools-mcp`.
+`kagent-tools-mcp` et autorise les Agents listés dans `kagent/hardening/actorjwt/allowed-agents`.
 
 ### Comparaison des deux outils
 
@@ -182,6 +183,9 @@ bash ./get-kagent --version v1.0.1
 OPENAI_API_KEY=factice kagent install --namespace kagent
 read -rs CLE && kubectl137 create secret generic kagent-openrouter -n kagent --from-literal=PROVIDER_API_KEY="$CLE"
 kubectl137 apply -f kagent/hardening/rbac.yaml
+docker build -t agentic-ops/kagent-mcp-authorizer:0.1.0 kagent/hardening/actorjwt/authorizer
+docker save agentic-ops/kagent-mcp-authorizer:0.1.0 |
+  docker exec -i kagent-control-plane ctr --namespace k8s.io images import --snapshotter overlayfs -
 kubectl137 apply -k kagent/hardening/actorjwt
 kubectl137 rollout status -n kagent deployment/kagent-mcp-auth
 kubectl137 apply -f kagent/agents/agent-restreint.yaml -f kagent/agents/agent-gpt41.yaml
@@ -201,6 +205,10 @@ Vérifier le durcissement : `KUBECONFIG=~/kagent-lab/kubeconfig ./kagent/test-in
 droits ne peut pas lire un Secret par le serveur d'outils ; code 1 : risque présent). Détails :
 [Sécurité de kagent](docs/references/securite-kagent.md).
 
+Les commandes Docker supposent que l’utilisateur a accès au moteur Docker sur l’hôte du banc. L’import
+`ctr` ci-dessus cible son nœud kind. Sur un autre cluster, publier l’image dans un registre autorisé et
+adapter sa référence dans `proxy.yaml`.
+
 ### Fichiers nécessaires au flux ActorJWT
 
 | Fichier | Rôle |
@@ -208,7 +216,9 @@ droits ne peut pas lire un Secret par le serveur d'outils ; code 1 : risque pré
 | [`kustomization.yaml`](kagent/hardening/actorjwt/kustomization.yaml) | Point d’entrée de `kubectl137 apply -k kagent/hardening/actorjwt`. Assemble les ressources et génère la ConfigMap du proxy. |
 | [`proxy.yaml`](kagent/hardening/actorjwt/proxy.yaml) | Déploie le proxy et son service interne, avec le bundle CA de Substrate. |
 | [`gateway.yaml`](kagent/hardening/actorjwt/gateway.yaml) | Configure la validation JWT et le transfert des requêtes MCP vers `kagent-tools`. |
-| [`server.yaml`](kagent/hardening/actorjwt/server.yaml) | Déclare le `RemoteMCPServer` commun et demande à Substrate d’injecter le JWT. |
+| [`server.yaml`](kagent/hardening/actorjwt/server.yaml) | Déclare le serveur MCP commun et les audiences du proxy et de la résolution d’identité. |
+| [`allowed-agents`](kagent/hardening/actorjwt/allowed-agents) | Liste les Agents autorisés sous la forme namespace/nom. |
+| [`authorizer/`](kagent/hardening/actorjwt/authorizer/) | Service local au proxy qui interroge `kagent-controller` et applique la liste d’accès. |
 | [`kagent/agents/`](kagent/agents/) | Configure les agents qui utilisent ce serveur MCP. |
 | [`networkpolicy.yaml`](kagent/hardening/networkpolicy.yaml) | Réserve l’accès direct à `kagent-tools:8084` au proxy. |
 | [`rbac.yaml`](kagent/hardening/rbac.yaml) | Borne séparément les droits de `kagent-tools` auprès de Kubernetes. |
@@ -235,8 +245,17 @@ image=$(awk '/^[[:space:]]*image:/ {print $2; exit}' kagent/hardening/actorjwt/p
 python3 kagent/tests/actorjwt/test-actorjwt-proxy.py "$image" 18180
 ```
 
-Un nouvel agent avec le même périmètre référence le `RemoteMCPServer` `kagent-tools-authenticated`. Pour adapter
-le montage à un autre cluster, vérifier la cohérence de l’audience entre `server.yaml` et `gateway.yaml`,
+Pour vérifier le refus d’un Agent authentifié, appliquer temporairement le
+[manifeste témoin](kagent/tests/actorjwt/agent-authz-witness.yaml), lancer
+`MCP_EXPECT=deny ./kagent/tests/actorjwt/test-actorjwt-session.sh diag-authz-witness`, puis supprimer
+les ressources du témoin avec `kubectl137 delete -f kagent/tests/actorjwt/agent-authz-witness.yaml`.
+Le test attend un HTTP 403 dans les traces du proxy pour l’Actor de cette session.
+
+Un nouvel agent avec le même périmètre référence le `RemoteMCPServer` `kagent-tools-authenticated`.
+Ajouter son identité à `allowed-agents` et réappliquer le répertoire ActorJWT pour actualiser la politique.
+Pour adapter
+le montage à un autre cluster, vérifier l’audience MCP commune à `server.yaml` et `gateway.yaml`, conserver
+`kagent-agent-info` dans `server.yaml`,
 puis adapter les noms DNS, l’émetteur, le JWKS et le bundle CA dans [les manifestes ActorJWT](kagent/hardening/actorjwt/).
 Les sessions ouvertes avant la migration peuvent conserver l’ancienne révision. Ouvrir une nouvelle session pour
 vérifier la bascule.

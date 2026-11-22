@@ -171,23 +171,24 @@ d'une mise à jour. La bonne place est un fichier de valeurs du chart, si le cha
 
 ## Authentification du flux MCP avec ActorJWT
 
-Le flux authentifié passe par deux instances distinctes d’AgentGateway. `atenet-egress` est la passerelle de sortie de Substrate. `kagent-mcp-auth` vérifie les jetons devant `kagent-tools`. Les schémas et mesures précédents décrivent le banc avant cette bascule.
+Le flux authentifié passe par deux instances distinctes d’AgentGateway. `atenet-egress` est la passerelle
+de sortie d’Agent Substrate. Agent Substrate fournit l’environnement d’exécution des sessions kagent et
+émet les jetons des Actors, les instances qui exécutent ces sessions. Son fournisseur d’identité (IdP)
+`idp`, dans `ate-system`, publie les clés publiques. `kagent-mcp-auth` est le proxy qui vérifie les jetons
+devant `kagent-tools`. [Glossaire](../../termes.md#identité-et-contrôle-daccès)
 
 ```text
-Agents diag-lecture et diag-lecture-gpt41
-  │ Appel MCP vers le RemoteMCPServer configuré avec actorJwt
-  ▼
-atenet-egress (AgentGateway existant, namespace ate-system)
-  │ Injecte Authorization: Bearer <Actor JWT> pour l’audience du serveur MCP
-  ▼
-Proxy MCP interne (seconde instance d’AgentGateway)
-  │ Valide le JWT avec les clés publiques de l’IdP Substrate (JWKS sur HTTPS)
-  │ Transmet uniquement les requêtes authentifiées
-  ▼
-kagent-tools:8084
-  │ Appelle Kubernetes avec le compte de service kagent-tools
-  ▼
-API Kubernetes du cluster kagent (RBAC en lecture seule)
+Dépendances d’identité
+  atenet-egress → API Agent Substrate          obtient un JWT pour l’Actor
+  kagent-mcp-auth → IdP Substrate              récupère les clés publiques en HTTPS (JWKS)
+
+Trajet d’un appel MCP
+  Actor d’une session kagent
+    → atenet-egress                            ajoute le JWT à la requête
+    → kagent-mcp-auth                          valide le JWT
+    → contrôle d’accès MCP                    décide si l’Agent peut utiliser le serveur
+    → kagent-tools:8084                         reçoit la requête sans JWT et appelle l’API
+    → API Kubernetes du cluster kagent         applique le RBAC
 ```
 
 - **Émission et injection.** Le `RemoteMCPServer` pointe vers le proxy et demande un jeton pour une audience dédiée, par exemple `kagent-tools-mcp`. Substrate émet le jeton de l’Actor d’exécution et `atenet-egress` l’ajoute à la requête MCP.
@@ -199,6 +200,38 @@ confiance Kubernetes des certificats DNS de Substrate pour récupérer son JWKS 
 internes du banc restent sur HTTP. Les [manifestes de déploiement](../../kagent/hardening/actorjwt/) et les [tests de validation](../../kagent/tests/actorjwt/) sont versionnés séparément.
 
 [Injection ActorJWT dans kagent](https://github.com/kagent-dev/kagent/pull/3359) · [Vérification des jetons Substrate](https://ate.dev/docs/guides/actor-jwts/)
+
+## Autorisation du flux MCP par Agent kagent
+
+**Le proxy et le contrôle d’accès tournent dans deux conteneurs du même pod.** Le contrôle d’accès écoute sur la boucle locale du pod. Le service Kubernetes expose uniquement le port MCP du proxy.
+
+- **`kagent-controller` existe déjà.** Il gère les agents et les sessions. Son API `ResolveAgentIdentity`
+  résout le lien entre l’Actor, sa session et l’Agent Kubernetes qui lui est associé.
+- **Le contrôle d’accès MCP est le composant ajouté.** Il compare l’identité renvoyée par
+  `kagent-controller` à une liste de couples namespace et nom autorisés pour ce serveur MCP.
+
+```text
+Actor → atenet-egress → kagent-mcp-auth
+                           │ 1. Valide le JWT avec les clés de l’IdP Substrate
+                           │ 2. Consulte le contrôle d’accès MCP
+                           │       └─→ kagent-controller / ResolveAgentIdentity
+                           │           renvoie l’Agent rattaché à la session
+                           │ 3. Applique la décision de la politique d’accès
+                           └─→ kagent-tools → API Kubernetes, si l’Agent est autorisé
+```
+
+Le `RemoteMCPServer` demande les audiences `kagent-tools-mcp` pour le proxy et `kagent-agent-info`
+pour la résolution par le contrôleur. Le proxy valide le JWT, le conserve pour l’appel HTTP local
+d’autorisation, puis retire l’en-tête `Authorization` avant l’appel MCP au backend. Le contrôle d’accès
+présente ce même jeton au contrôleur sur son service gRPC interne. Sur ce banc, cet échange utilise HTTP/2 sans TLS. Il autorise les deux couples
+namespace/nom du fichier [allowed-agents](../../kagent/hardening/actorjwt/allowed-agents).
+
+Le proxy renvoie HTTP 401 pour un jeton absent ou invalide. Un jeton valide associé à un Agent hors liste
+reçoit HTTP 403. Un échec de résolution bloque la transmission. Le test isolé a observé HTTP 503 dans ce cas.
+La politique n’épingle pas l’UID des Agents et ne met pas en cache les décisions. Le RBAC du compte
+`kagent-tools` s’applique à l’appel Kubernetes.
+
+[API de résolution d’identité kagent](https://github.com/kagent-dev/kagent/pull/3362)
 
 ## 5. À retenir
 
@@ -212,8 +245,9 @@ internes du banc restent sur HTTP. Les [manifestes de déploiement](../../kagent
   du proxy sur backend factice a aussi couvert les jetons invalides et vérifié que le jeton valide est retiré
   avant transmission.
 - **ActorJWT authentifie l’Actor de la session.** La configuration du banc valide l’émetteur et l’audience.
-  Une politique supplémentaire serait nécessaire pour réserver le service aux deux agents nommés ou
-  attribuer des droits distincts à chacun. Les deux agents partagent le compte Kubernetes de `kagent-tools`.
+  Le contrôle d’accès vérifie en plus l’Agent rattaché à la session. Les deux agents autorisés partagent
+  le compte Kubernetes de `kagent-tools`. Des droits Kubernetes distincts exigeraient des identités
+  de service distinctes.
 - **La portée du résultat dépend de la configuration déployée.** Les mesures concernent ce banc kind, avec
   kindnet et des flux MCP internes en HTTP. La réapplication des manifestes a été vérifiée. Une mise à jour
   Helm et un retour arrière complet restent à rejouer avant de considérer cette configuration comme durable.

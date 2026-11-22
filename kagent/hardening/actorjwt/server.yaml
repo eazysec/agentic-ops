@@ -7,4 +7,4 @@ spec:
   protocol: STREAMABLE_HTTP
   url: http://kagent-mcp-auth.kagent.svc.cluster.local:8080/mcp
   actorJwt:
-    audiences: [kagent-tools-mcp]
+    audiences: [kagent-tools-mcp, kagent-agent-info]

@@ -8,3 +8,6 @@ configMapGenerator:
   - name: kagent-mcp-auth
     files:
       - gateway.yaml
+  - name: kagent-mcp-policy
+    files:
+      - allowed-agents

@@ -3,7 +3,7 @@ gateways:
     port: 8080
     jwtAuth:
       mode: strict
-      preserveToken: false
+      preserveToken: true
       issuer: https://idp.ate-system.svc
       audiences: [kagent-tools-mcp]
       jwks:
@@ -16,5 +16,16 @@ routes:
     matches:
       - path:
           exact: /mcp
+    policies:
+      extAuthz:
+        host: 127.0.0.1:8090
+        failureMode: deny
+        includeRequestHeaders: [authorization]
+        protocol:
+          http:
+            path: '"/check"'
     backends:
       - host: kagent-tools.kagent.svc.cluster.local:8084
+        policies:
+          requestHeaderModifier:
+            remove: [authorization]

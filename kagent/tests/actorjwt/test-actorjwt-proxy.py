@@ -54,6 +54,8 @@ def status(port, token=None):
 
 def run(image, port):
     calls = []
+    checks = []
+    expected_tokens = {}
     source = Path(__file__).resolve().parents[2] / "hardening/actorjwt/gateway.yaml"
     with tempfile.TemporaryDirectory() as directory:
         temp = Path(directory)
@@ -72,6 +74,12 @@ def run(image, port):
                 self.wfile.write(json.dumps({"keys": [jwk]}).encode())
 
             def do_POST(self):
+                if self.path == "/check":
+                    identity = expected_tokens.get(self.headers.get("Authorization"))
+                    checks.append(identity)
+                    self.send_response({"allowed": 204, "denied": 403}.get(identity, 503))
+                    self.end_headers()
+                    return
                 calls.append("Authorization" in self.headers)
                 self.send_response(204)
                 self.end_headers()
@@ -83,6 +91,9 @@ def run(image, port):
             config = config.replace("https://idp.ate-system.svc/openid/v1/jwks", f"http://{backend}/jwks")
             config = config.replace("https://idp.ate-system.svc", ISSUER)
             config = config.replace("kagent-tools.kagent.svc.cluster.local:8084", backend)
+            authz = "extAuthz:" in config
+            if authz:
+                config = config.replace("127.0.0.1:8090", backend)
             config_path = temp / "gateway.yaml"
             config_path.write_text(config)
             name = f"actorjwt-test-{os.getpid()}"
@@ -113,11 +124,21 @@ def run(image, port):
                         ("wrong audience", sign(private_key, dict(claims, aud=["other"])), 401),
                         ("expired", sign(private_key, dict(claims, exp=now - 3600)), 401),
                     ]
+                    if authz:
+                        expected_tokens[f"Bearer {cases[0][1]}"] = "allowed"
+                        denied = sign(private_key, dict(claims, sub="actor/test/denied"))
+                        expected_tokens[f"Bearer {denied}"] = "denied"
+                        cases.append(("valid but unauthorized", denied, 403))
+                        unresolved = sign(private_key, dict(claims, sub="actor/test/unresolved"))
+                        expected_tokens[f"Bearer {unresolved}"] = "unresolved"
+                        cases.append(("identity resolution unavailable", unresolved, 503))
                     for label, token, expected in cases:
                         actual = status(port, token)
                         if actual != expected:
                             raise AssertionError(f"{label}: expected HTTP {expected}, got {actual}")
                         print(f"OK {label}: HTTP {actual}")
+                    if authz and checks != ["allowed", "denied", "unresolved"]:
+                        raise AssertionError("Only authenticated JWTs must reach the authorization service")
                     if calls != [False]:
                         raise AssertionError("Only the valid request may reach the backend, without its JWT")
                     print("OK backend received only the accepted request, without Authorization")

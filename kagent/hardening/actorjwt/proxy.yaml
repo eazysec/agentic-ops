@@ -42,6 +42,22 @@ spec:
             - name: substrate-ca
               mountPath: /etc/substrate
               readOnly: true
+        - name: authorizer
+          image: agentic-ops/kagent-mcp-authorizer:0.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KAGENT_CONTROLLER
+              value: kagent-controller.kagent.svc.cluster.local:8083
+            - name: ALLOWED_AGENTS
+              valueFrom:
+                configMapKeyRef:
+                  name: kagent-mcp-policy
+                  key: allowed-agents
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
       volumes:
         - name: config
           configMap:
