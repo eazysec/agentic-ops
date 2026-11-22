@@ -1,0 +1,20 @@
+gateways:
+  mcp:
+    port: 8080
+    jwtAuth:
+      mode: strict
+      preserveToken: false
+      issuer: https://idp.ate-system.svc
+      audiences: [kagent-tools-mcp]
+      jwks:
+        url: https://idp.ate-system.svc/openid/v1/jwks
+      jwtValidationOptions:
+        requiredClaims: [exp]
+routes:
+  - name: kubernetes-tools
+    gateways: [mcp]
+    matches:
+      - path:
+          exact: /mcp
+    backends:
+      - host: kagent-tools.kagent.svc.cluster.local:8084

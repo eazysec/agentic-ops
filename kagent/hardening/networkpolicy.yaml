@@ -1,8 +1,5 @@
-# Durcissement 2 : qui peut joindre le serveur d'outils sur le port 8084.
-# IMPORTANT (kagent 1.x) : le trafic d'un agent vers kagent-tools ne vient PAS du pod de l'agent directement,
-# il sort par la passerelle « atenet-egress » du namespace ate-system (Agent Substrate). Il faut donc l'autoriser,
-# sinon l'agent perd ses outils (« Service Unavailable »). Constaté au banc le 2026-11-21.
-# NON appliqué par tous les CNI (kindnet l'applique ici). Défense en profondeur ; le RBAC reste la barrière principale.
+# Only the authenticated MCP proxy can connect to the backend tool server.
+# The egress gateway sends ActorJWT requests to the proxy, which validates the token.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -15,17 +12,9 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        # 1. les pods du namespace kagent (contrôleur, découverte des outils)
-        - namespaceSelector:
+        - podSelector:
             matchLabels:
-              kubernetes.io/metadata.name: kagent
-        # 2. la passerelle de sortie du Substrate, par où passent les appels d'outils des agents
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ate-system
-          podSelector:
-            matchLabels:
-              app: atenet-egress
+              app.kubernetes.io/name: kagent-mcp-auth
       ports:
         - protocol: TCP
           port: 8084

@@ -32,7 +32,7 @@ spec:
     - mcp:
         server:
           kind: RemoteMCPServer
-          name: kagent-tool-server
+          name: kagent-tools-authenticated
         requireApproval: false
         tools:
           - k8s_get_resources

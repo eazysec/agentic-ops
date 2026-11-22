@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kagent
+resources:
+  - proxy.yaml
+  - server.yaml
+configMapGenerator:
+  - name: kagent-mcp-auth
+    files:
+      - gateway.yaml

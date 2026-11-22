@@ -50,14 +50,13 @@ l'extérieur. Détails : `comparaison-opencode-kagent.md` (dépôt privé),
    │  └──────────────┬───────────────┘     │   │ (gVisor) │ toute │ (proxy :     │  sortie unique  ││
    │   kubectl (lecture,                   │   └──────────┘ sortie│  MCP + LLM)  │  du bac à sable)││
    │   compte opencode-lecture)            │                      └──┬───────────┘                 ││
-   │                 ▼                     │       MCP/HTTP (saut 1) │                              ││
-   │  ┌──────────────────────────────┐    │                         ▼                              ││
+   │                 ▼                     │   MCP + ActorJWT       ▼                              ││
+   │  ┌──────────────────────────────┐    │      kagent-mcp-auth (valide le JWT)                    ││
    │  │ CLUSTER kind « banc »         │    │   ┌──────────────┐  API K8s  ┌────────────────────┐   ││
    │  │ (K8s 1.31)                    │    │   │ kagent-tools │──────────►│ ns banc : pods      │   ││
-   │  │  ns banc : pods panne+secret  │    │   │  :8084 (MCP) │  (saut 2) │ panne + secret-piege│   ││
+   │  │  ns banc : pods panne+secret  │    │   │  :8084 (MCP) │           │ panne + secret-piege│   ││
    │  └──────────────────────────────┘    │   └──────────────┘           └────────────────────┘   ││
-   │                                       │   NetworkPolicy : ingress 8084 depuis ns kagent +     ││
-   │                                       │   pod atenet-egress (ate-system) ; tout le reste refusé││
+   │                                       │   NetworkPolicy : accès à 8084 réservé au proxy       ││
    │                                       └───────────────────────────────────────────────────────┘│
    └────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -65,9 +64,9 @@ l'extérieur. Détails : `comparaison-opencode-kagent.md` (dépôt privé),
 **Flux :**
 - **OpenCode** parle au cluster `banc` par `kubectl` (lecture seule via le compte `opencode-lecture` en mode conteneur),
   et au LLM par HTTPS **direct** vers OpenRouter.
-- **kagent, appels d'outils** : l'agent (bac à sable gVisor, ns `kagent`) atteint le serveur d'outils en **2 sauts** :
-  saut 1 en MCP/HTTP via la passerelle `atenet-egress` (ns `ate-system`), saut 2 où `kagent-tools` appelle l'API
-  Kubernetes avec son compte (c'est ce saut qui lit les ressources du ns `banc`).
+- **kagent, appels d’outils** : `atenet-egress` injecte le JWT de l’Actor dans l’appel MCP. Le proxy interne
+  `kagent-mcp-auth` le valide et transmet la requête à `kagent-tools`. Ce dernier interroge l’API Kubernetes avec
+  son compte de service.
 - **kagent, raisonnement du modèle** : l'appel au LLM de l'agent sort **aussi** par `atenet-egress` vers OpenRouter,
   parce que le bac à sable force **toute** sa sortie (vers un service interne comme vers Internet) par cette passerelle.
 
@@ -78,11 +77,9 @@ l'extérieur. Détails : `comparaison-opencode-kagent.md` (dépôt privé),
 | `banc` (OpenCode) | RBAC `opencode-lecture` (lecture, sans Secrets) + conteneur durci | aucune |
 | `kagent` | RBAC `kagent-tools` ramené en lecture seule sans Secrets | NetworkPolicy sur le port 8084 |
 
-**Labels utilisés par la NetworkPolicy de kagent** (`kagent/hardening/networkpolicy.yaml`) :
-- cible : pod `app.kubernetes.io/name: kagent-tools` ;
-- autorisés en entrée sur 8084 : namespace `kubernetes.io/metadata.name: kagent`, **et** le pod `app: atenet-egress`
-  du namespace `kubernetes.io/metadata.name: ate-system` (le chemin légitime des appels d'outils) ;
-- tout le reste est refusé (vérifié : un pod d'un autre namespace tombe en timeout).
+La [NetworkPolicy de kagent](kagent/hardening/networkpolicy.yaml) réserve l’accès direct à
+`kagent-tools:8084` aux pods du proxy `kagent-mcp-auth`. Le proxy exige un ActorJWT valide pour l’audience
+`kagent-tools-mcp`.
 
 ### Comparaison des deux outils
 
@@ -183,15 +180,18 @@ kagent 1.x exige Kubernetes 1.37 ; sur le banc, il a son propre cluster kind et 
 export KUBECONFIG=~/kagent-lab/kubeconfig
 bash ./get-kagent --version v1.0.1
 OPENAI_API_KEY=factice kagent install --namespace kagent
-read -rs CLE && kubectl create secret generic kagent-openrouter -n kagent --from-literal=PROVIDER_API_KEY="$CLE"
-kubectl apply -f kagent/agents/agent-restreint.yaml -f kagent/agents/agent-gpt41.yaml
-kubectl apply -f kagent/hardening/rbac.yaml -f kagent/hardening/networkpolicy.yaml
+read -rs CLE && kubectl137 create secret generic kagent-openrouter -n kagent --from-literal=PROVIDER_API_KEY="$CLE"
+kubectl137 apply -f kagent/hardening/rbac.yaml
+kubectl137 apply -k kagent/hardening/actorjwt
+kubectl137 rollout status -n kagent deployment/kagent-mcp-auth
+kubectl137 apply -f kagent/agents/agent-restreint.yaml -f kagent/agents/agent-gpt41.yaml
+kubectl137 apply -f kagent/hardening/networkpolicy.yaml
 ```
 
 Diagnostic d'un pod en erreur (le CLI passe par le contrôleur, exposé en local) :
 
 ```bash
-kubectl port-forward -n kagent svc/kagent-controller 8083:8083 &
+kubectl137 port-forward -n kagent svc/kagent-controller 8083:8083 &
 SID=$(kagent agent session create --agent diag-lecture-gpt41 -o json | jq -r .session.id)
 kagent agent invoke --session "$SID" -o json \
   --task "Le pod oom du namespace banc redémarre en boucle. Diagnostique sans rien modifier."
@@ -200,6 +200,32 @@ kagent agent invoke --session "$SID" -o json \
 Vérifier le durcissement : `KUBECONFIG=~/kagent-lab/kubeconfig ./kagent/test-intrusion.sh` (code 0 : un pod sans
 droits ne peut pas lire un Secret par le serveur d'outils ; code 1 : risque présent). Détails :
 [Sécurité de kagent](docs/references/securite-kagent.md).
+
+### Vérification ActorJWT
+
+Depuis l’EC2, avec le kubeconfig du cluster `kagent` et un pod de test dans le namespace `banc` :
+
+```bash
+export KUBECONFIG="$HOME/kagent-lab/kubeconfig"
+./kagent/test-actorjwt-state.sh
+./kagent/test-actorjwt-session.sh diag-lecture-gpt41
+./kagent/test-actorjwt-session.sh diag-lecture
+./kagent/test-actorjwt-network.sh
+```
+
+Le test de session vérifie la réponse de l’outil et la trace d’authentification du proxy. Pour vérifier les refus
+sans utiliser de jetons réels, lancer le [test du proxy](kagent/test-actorjwt-proxy.py) avec Python 3, OpenSSL et Docker :
+
+```bash
+image=$(awk '/^[[:space:]]*image:/ {print $2; exit}' kagent/hardening/actorjwt/proxy.yaml)
+python3 kagent/test-actorjwt-proxy.py "$image" 18180
+```
+
+Un nouvel agent avec le même périmètre référence le `RemoteMCPServer` `kagent-tools-authenticated`. Pour adapter
+le montage à un autre cluster, vérifier la cohérence de l’audience entre `server.yaml` et `gateway.yaml`,
+puis adapter les noms DNS, l’émetteur, le JWKS et le bundle CA dans [les manifestes ActorJWT](kagent/hardening/actorjwt/).
+Les sessions ouvertes avant la migration peuvent conserver l’ancienne révision. Ouvrir une nouvelle session pour
+vérifier la bascule.
 
 ## Banc d'essai et résultats
 
@@ -240,4 +266,4 @@ Observations :
 **kagent**
 
 7. Appliquer `kagent/hardening/` avant le premier agent : par défaut, le serveur d'outils est administrateur du cluster et sans authentification.
-8. Autoriser le pod `atenet-egress` dans la NetworkPolicy : les appels d'outils passent par lui.
+8. Valider les sessions sur le proxy ActorJWT avant de réserver l’accès au port 8084 aux pods du proxy.

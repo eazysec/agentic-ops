@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kagent-mcp-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kagent-mcp-auth
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kagent-mcp-auth
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: cr.agentgateway.dev/agentgateway:v1.7.0@sha256:60216aafb03d37f94e952ff3d51d2f630a65b10ecaebdc0a864882f92610c45b
+          args: ["-f", "/etc/agentgateway/gateway.yaml"]
+          env:
+            - name: SSL_CERT_FILE
+              value: /etc/substrate/ca.pem
+          ports:
+            - name: mcp
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: mcp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/agentgateway
+              readOnly: true
+            - name: substrate-ca
+              mountPath: /etc/substrate
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: kagent-mcp-auth
+        - name: substrate-ca
+          projected:
+            sources:
+              - clusterTrustBundle:
+                  signerName: servicedns.podcert.ate.dev/identity
+                  labelSelector: {}
+                  path: ca.pem
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kagent-mcp-auth
+spec:
+  selector:
+    app.kubernetes.io/name: kagent-mcp-auth
+  ports:
+    - name: mcp
+      port: 8080
+      targetPort: mcp

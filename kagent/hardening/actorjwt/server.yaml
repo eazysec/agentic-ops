@@ -1,0 +1,10 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: RemoteMCPServer
+metadata:
+  name: kagent-tools-authenticated
+spec:
+  description: Kubernetes diagnostics via the authenticated MCP proxy
+  protocol: STREAMABLE_HTTP
+  url: http://kagent-mcp-auth.kagent.svc.cluster.local:8080/mcp
+  actorJwt:
+    audiences: [kagent-tools-mcp]
