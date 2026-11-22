@@ -54,7 +54,7 @@ def status(port, token=None):
 
 def run(image, port):
     calls = []
-    source = Path(__file__).parent / "hardening/actorjwt/gateway.yaml"
+    source = Path(__file__).resolve().parents[2] / "hardening/actorjwt/gateway.yaml"
     with tempfile.TemporaryDirectory() as directory:
         temp = Path(directory)
         private_key = temp / "test.key"

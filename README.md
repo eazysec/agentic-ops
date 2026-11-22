@@ -201,24 +201,38 @@ Vérifier le durcissement : `KUBECONFIG=~/kagent-lab/kubeconfig ./kagent/test-in
 droits ne peut pas lire un Secret par le serveur d'outils ; code 1 : risque présent). Détails :
 [Sécurité de kagent](docs/references/securite-kagent.md).
 
+### Fichiers nécessaires au flux ActorJWT
+
+| Fichier | Rôle |
+|---------|------|
+| [`kustomization.yaml`](kagent/hardening/actorjwt/kustomization.yaml) | Point d’entrée de `kubectl137 apply -k kagent/hardening/actorjwt`. Assemble les ressources et génère la ConfigMap du proxy. |
+| [`proxy.yaml`](kagent/hardening/actorjwt/proxy.yaml) | Déploie le proxy et son service interne, avec le bundle CA de Substrate. |
+| [`gateway.yaml`](kagent/hardening/actorjwt/gateway.yaml) | Configure la validation JWT et le transfert des requêtes MCP vers `kagent-tools`. |
+| [`server.yaml`](kagent/hardening/actorjwt/server.yaml) | Déclare le `RemoteMCPServer` commun et demande à Substrate d’injecter le JWT. |
+| [`kagent/agents/`](kagent/agents/) | Configure les agents qui utilisent ce serveur MCP. |
+| [`networkpolicy.yaml`](kagent/hardening/networkpolicy.yaml) | Réserve l’accès direct à `kagent-tools:8084` au proxy. |
+| [`rbac.yaml`](kagent/hardening/rbac.yaml) | Borne séparément les droits de `kagent-tools` auprès de Kubernetes. |
+
+Les scripts sous [`kagent/tests/actorjwt/`](kagent/tests/actorjwt/) servent à vérifier le flux. Ils s’exécutent à la demande.
+
 ### Vérification ActorJWT
 
 Depuis l’EC2, avec le kubeconfig du cluster `kagent` et un pod de test dans le namespace `banc` :
 
 ```bash
 export KUBECONFIG="$HOME/kagent-lab/kubeconfig"
-./kagent/test-actorjwt-state.sh
-./kagent/test-actorjwt-session.sh diag-lecture-gpt41
-./kagent/test-actorjwt-session.sh diag-lecture
-./kagent/test-actorjwt-network.sh
+./kagent/tests/actorjwt/test-actorjwt-state.sh
+./kagent/tests/actorjwt/test-actorjwt-session.sh diag-lecture-gpt41
+./kagent/tests/actorjwt/test-actorjwt-session.sh diag-lecture
+./kagent/tests/actorjwt/test-actorjwt-network.sh
 ```
 
 Le test de session vérifie la réponse de l’outil et la trace d’authentification du proxy. Pour vérifier les refus
-sans utiliser de jetons réels, lancer le [test du proxy](kagent/test-actorjwt-proxy.py) avec Python 3, OpenSSL et Docker :
+sans utiliser de jetons réels, lancer le [test du proxy](kagent/tests/actorjwt/test-actorjwt-proxy.py) avec Python 3, OpenSSL et Docker :
 
 ```bash
 image=$(awk '/^[[:space:]]*image:/ {print $2; exit}' kagent/hardening/actorjwt/proxy.yaml)
-python3 kagent/test-actorjwt-proxy.py "$image" 18180
+python3 kagent/tests/actorjwt/test-actorjwt-proxy.py "$image" 18180
 ```
 
 Un nouvel agent avec le même périmètre référence le `RemoteMCPServer` `kagent-tools-authenticated`. Pour adapter
