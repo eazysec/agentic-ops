@@ -251,8 +251,32 @@ Pour vérifier le refus d’un Agent authentifié, appliquer temporairement le
 les ressources du témoin avec `kubectl137 delete -f kagent/tests/actorjwt/agent-authz-witness.yaml`.
 Le test attend un HTTP 403 dans les traces du proxy pour l’Actor de cette session.
 
-Un nouvel agent avec le même périmètre référence le `RemoteMCPServer` `kagent-tools-authenticated`.
-Ajouter son identité à `allowed-agents` et réappliquer le répertoire ActorJWT pour actualiser la politique.
+### Ajouter un Agent autorisé
+
+1. Dans son `AgentTemplate`, référencer le `RemoteMCPServer` `kagent-tools-authenticated` et indiquer
+   les outils que l’agent doit demander.
+2. Ajouter son identité `namespace/nom` à [`allowed-agents`](kagent/hardening/actorjwt/allowed-agents).
+3. Depuis la racine du dépôt, avec le kubeconfig du cluster `kagent`, appliquer la politique et attendre
+   le remplacement du pod :
+
+   ```bash
+   kubectl137 apply -k kagent/hardening/actorjwt
+   kubectl137 -n kagent rollout status deployment/kagent-mcp-auth
+   ```
+
+4. Ouvrir une nouvelle session et vérifier le résultat d’un appel MCP. Pour retirer l’accès, supprimer
+   la ligne correspondante, réappliquer et vérifier le refus dans une nouvelle session.
+
+### Changer la logique de décision
+
+[`authorizer/main.go`](kagent/hardening/actorjwt/authorizer/main.go) porte la logique de décision.
+Il résout l’identité de l’Agent auprès de `kagent-controller` et applique la liste d’accès. Pour
+modifier cette règle, écrire le cas attendu dans [`main_test.go`](kagent/hardening/actorjwt/authorizer/main_test.go),
+modifier `main.go`, puis lancer `go test ./...` depuis `kagent/hardening/actorjwt/authorizer/`.
+Construire l’image avec un nouveau tag, la rendre accessible au cluster, reporter ce tag dans
+`proxy.yaml`, puis appliquer les manifestes et rejouer les cas autorisé et refusé. Un changement
+de la liste seule prend effet au redéploiement du pod, avec la même image.
+
 Pour adapter
 le montage à un autre cluster, vérifier l’audience MCP commune à `server.yaml` et `gateway.yaml`, conserver
 `kagent-agent-info` dans `server.yaml`,

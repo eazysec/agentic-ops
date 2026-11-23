@@ -55,3 +55,13 @@ Ressource Kubernetes nommée qui associe une configuration `AgentTemplate` à un
 ### [kagent] Contrôleur
 
 Composant existant `kagent-controller` qui gère les agents et les sessions. Son API `ResolveAgentIdentity` permet de retrouver l’Agent rattaché à l’Actor d’une session à partir d’un jeton destiné à cette résolution.
+
+## Découverte d’outils
+
+### [MCP] Catalogue MCP
+
+Liste des outils qu’un serveur annonce à un client en réponse à `tools/list`. Chaque entrée indique
+le nom de l’outil et le schéma de ses paramètres. Elle peut aussi fournir une description. Par exemple,
+une entrée peut annoncer `k8s_get_events` avec un paramètre `namespace` de type chaîne. L’appel
+`tools/call` exécute ensuite l’outil et renvoie son résultat.
+[Spécification MCP](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#listing-tools)
