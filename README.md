@@ -11,6 +11,8 @@ OpenCode est un agent IA open-source en ligne de commande qui peut interagir dir
 
 Sources:
 - [GitHub OpenCode](https://github.com/anomalyco/opencode)
+- [Architecture de kagent](https://kagent.dev/docs/kagent/latest/about/architecture/kagent/)
+- [Architecture de sécurité agentique](https://securite-agentique.fr/architecture-securite-agent-ia)
 - [Deep dive technique](https://cefboud.com/posts/coding-agents-internals-opencode-deepdive/)
 
 Termes employés (agent, sous-agent, session, permission...) : voir `termes.md` (dépôt privé). Pourquoi des agents

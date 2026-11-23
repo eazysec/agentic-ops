@@ -164,6 +164,10 @@ d'une mise à jour. La bonne place est un fichier de valeurs du chart, si le cha
 
 ## Authentification du flux MCP avec ActorJWT
 
+**ActorJWT protège le flux de l’Agent vers `kagent-tools`.** Le proxy MCP utilise ce jeton pour
+authentifier l’Actor qui exécute la session. L’accès de l’utilisateur à l’interface kagent et au
+contrôleur relève d’un contrôle distinct.
+
 Le flux passe par deux instances distinctes d’AgentGateway.
 
 - **`atenet-egress`** est la passerelle de sortie d’Agent Substrate. Elle obtient le JWT de l’Actor et l’ajoute à la requête MCP.
