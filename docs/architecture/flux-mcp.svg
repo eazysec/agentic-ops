@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 330" role="img" aria-labelledby="title desc">
+  <title id="title">Authentification et autorisation du flux MCP kagent</title>
+  <desc id="desc">L’Actor passe par atenet-egress, qui injecte le JWT. Le proxy valide le jeton et consulte authorizer, qui résout l’Agent auprès de kagent-controller. Le proxy transmet les appels autorisés à kagent-tools sans jeton.</desc>
+  <defs>
+    <marker id="flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#526780"/>
+    </marker>
+    <marker id="check" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#a55e18"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: system-ui, sans-serif; fill: #152844; }
+    .title { font-size: 16px; font-weight: 700; }
+    .label { font-size: 15px; font-weight: 650; text-anchor: middle; }
+    .note { font-size: 13px; fill: #415674; text-anchor: middle; }
+    .edge { fill: none; stroke: #526780; stroke-width: 2; marker-end: url(#flow); }
+    .check { fill: none; stroke: #a55e18; stroke-width: 2; stroke-dasharray: 5 4; marker-end: url(#check); }
+    .box { fill: #fff; stroke: #8a9db7; }
+    .control { fill: #fff2dd; stroke: #b66a15; }
+    .runtime { fill: #f3edff; stroke: #8164b3; }
+  </style>
+  <rect width="960" height="330" rx="16" fill="#fff"/>
+  <rect x="16" y="18" width="928" height="294" rx="14" fill="#f6f8fc" stroke="#b6c3d4"/>
+  <text class="title" x="34" y="47">Cluster kind kagent</text>
+  <rect x="322" y="60" width="242" height="224" rx="11" fill="#fffaf0" stroke="#dba764"/>
+  <text class="note" x="443" y="83">Pod kagent-mcp-auth · ns kagent</text>
+  <path class="edge" d="M139 131H166"/>
+  <path class="edge" d="M297 131H337"/>
+  <path class="edge" d="M548 131H585"/>
+  <path class="edge" d="M735 131H768"/>
+
+  <path class="check" d="M231 163V222"/>
+  <path class="check" d="M360 163V206H291V222"/>
+  <path class="check" d="M443 163V222"/>
+  <path class="check" d="M548 250H598"/>
+  <text class="note" x="174" y="199">Émission</text>
+  <text class="note" x="323" y="199">JWKS</text>
+  <text class="note" x="495" y="199">Décision</text>
+
+  <rect class="runtime" x="34" y="100" width="105" height="63" rx="8"/>
+  <text class="label" x="86.5" y="126">Actor</text>
+  <text class="note" x="86.5" y="146">Client MCP</text>
+
+  <rect class="control" x="167" y="100" width="130" height="63" rx="8"/>
+  <text class="label" x="232" y="124">atenet-egress</text>
+  <text class="note" x="232" y="145">Injecte le JWT</text>
+
+  <rect class="control" x="338" y="100" width="210" height="63" rx="8"/>
+  <text class="label" x="443" y="124">gateway</text>
+  <text class="note" x="443" y="145">Valide et retire le JWT</text>
+
+  <rect class="box" x="586" y="100" width="149" height="63" rx="8"/>
+  <text class="label" x="660.5" y="124">kagent-tools</text>
+  <text class="note" x="660.5" y="145">MCP · port 8084</text>
+
+  <rect class="box" x="769" y="100" width="155" height="63" rx="8"/>
+  <text class="label" x="846.5" y="124">API Kubernetes</text>
+  <text class="note" x="846.5" y="145">RBAC en lecture</text>
+
+  <rect class="control" x="119" y="223" width="184" height="55" rx="8"/>
+  <text class="label" x="211" y="245">API Substrate et IdP</text>
+  <text class="note" x="211" y="264">namespace ate-system</text>
+
+  <rect class="control" x="338" y="223" width="210" height="55" rx="8"/>
+  <text class="label" x="443" y="245">authorizer</text>
+  <text class="note" x="443" y="264">Décide selon la liste d’accès</text>
+
+  <rect class="box" x="599" y="223" width="191" height="55" rx="8"/>
+  <text class="label" x="694.5" y="245">kagent-controller</text>
+  <text class="note" x="694.5" y="264">Résout l’Agent via gRPC</text>
+</svg>

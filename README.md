@@ -19,6 +19,7 @@ spécialisés (agents principaux Plan/Build, sous-agents) : voir `introduction-a
 Sommaire:
 
 - [Architecture du banc d'essai (OpenCode et kagent)](#architecture-du-banc-dessai-opencode-et-kagent)
+  - [Contrôles du flux MCP dans le cluster kagent](#contrôles-du-flux-mcp-dans-le-cluster-kagent)
   - [Comparaison des deux outils](#comparaison-des-deux-outils)
 - [Installation](#installation)
 - [Configuration des agents Ops](#configuration-des-agents-ops)
@@ -35,31 +36,15 @@ kind** indépendants. Le LLM (`gpt-oss-120b` et, pour comparaison, `gpt-4.1-mini
 l'extérieur. Détails : `comparaison-opencode-kagent.md` (dépôt privé),
 [Sécurité de kagent](docs/references/securite-kagent.md).
 
-```
-                        ┌──────────────────────────────────────────────────────┐
-                        │  OpenRouter (LLM externe) gpt-oss-120b / gpt-4.1-mini │
-                        └──────▲─────────────────────────────────────▲──────────┘
-             HTTPS, LLM OpenCode│                    HTTPS, LLM agent kagent│ (par la passerelle)
-   ┌───────────────────────────┼──────────────────────────────────────────┼──────────────────────┐
-   │ INSTANCE EC2 (Docker)      │                                          │                      │
-   │  ┌─────────────────────────┴────┐     ┌─────────────────────────────────┼────────────────────┐│
-   │  │ OpenCode                     │     │ CLUSTER kind « kagent » (K8s 1.37)│                   ││
-   │  │  • mode direct (hôte)        │     │   ns kagent          ns ate-system│                   ││
-   │  │  • mode conteneur (durci :   │     │   ┌──────────┐       ┌────────────┴─┐                 ││
-   │  │    non-root, RO, AppArmor)   │     │   │ agent    │──────►│ atenet-egress│ (passerelle,    ││
-   │  └──────────────┬───────────────┘     │   │ (gVisor) │ toute │ (proxy :     │  sortie unique  ││
-   │   kubectl (lecture,                   │   └──────────┘ sortie│  MCP + LLM)  │  du bac à sable)││
-   │   compte opencode-lecture)            │                      └──┬───────────┘                 ││
-   │                 ▼                     │   MCP + ActorJWT       ▼                              ││
-   │  ┌──────────────────────────────┐    │      kagent-mcp-auth (valide le JWT)                    ││
-   │  │ CLUSTER kind « banc »         │    │   ┌──────────────┐  API K8s  ┌────────────────────┐   ││
-   │  │ (K8s 1.31)                    │    │   │ kagent-tools │──────────►│ ns banc : pods      │   ││
-   │  │  ns banc : pods panne+secret  │    │   │  :8084 (MCP) │           │ panne + secret-piege│   ││
-   │  └──────────────────────────────┘    │   └──────────────┘           └────────────────────┘   ││
-   │                                       │   NetworkPolicy : accès à 8084 réservé au proxy       ││
-   │                                       └───────────────────────────────────────────────────────┘│
-   └────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+![Architecture du banc OpenCode et kagent](docs/architecture/banc.svg)
+
+### Contrôles du flux MCP dans le cluster kagent
+
+![Contrôles du flux MCP dans le cluster kagent](docs/architecture/flux-mcp.svg)
+
+Les traits pleins suivent les appels MCP. Les pointillés montrent les consultations liées à l’identité
+et à l’autorisation. `atenet-egress` et l’IdP résident dans `ate-system`. Dans `kagent`, le proxy
+et `authorizer` partagent le même pod. Le proxy transmet les requêtes autorisées à `kagent-tools`.
 
 **Flux :**
 - **OpenCode** parle au cluster `banc` par `kubectl` (lecture seule via le compte `opencode-lecture` en mode conteneur),

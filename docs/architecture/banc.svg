@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 415" role="img" aria-labelledby="title desc">
+  <title id="title">Architecture du banc OpenCode et kagent</title>
+  <desc id="desc">Sur une EC2, OpenCode interroge le cluster banc, tandis que kagent accède à son propre cluster par le proxy MCP. Les deux utilisent OpenRouter.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#526780"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: system-ui, sans-serif; fill: #152844; }
+    .title { font-size: 16px; font-weight: 700; }
+    .label { font-size: 15px; font-weight: 650; text-anchor: middle; }
+    .note { font-size: 13px; fill: #415674; text-anchor: middle; }
+    .edge { fill: none; stroke: #526780; stroke-width: 2; marker-end: url(#arrow); }
+    .model-edge { fill: none; stroke: #6945a3; stroke-width: 2; }
+    .box { fill: #fff; stroke: #8a9db7; }
+    .runtime { fill: #f3edff; stroke: #8164b3; }
+    .control { fill: #fff2dd; stroke: #b66a15; }
+  </style>
+  <rect width="960" height="415" rx="16" fill="#fff"/>
+  <rect x="172" y="20" width="764" height="295" rx="14" fill="#f6f8fc" stroke="#b6c3d4"/>
+  <text class="title" x="190" y="49">Instance EC2 · Docker</text>
+  <rect x="190" y="65" width="728" height="102" rx="10" fill="#fff" stroke="#d4deeb"/>
+  <rect x="190" y="184" width="728" height="110" rx="10" fill="#fff" stroke="#d4deeb"/>
+  <text class="title" x="205" y="89">OpenCode</text>
+  <text class="title" x="205" y="209">kagent</text>
+
+  <path class="edge" d="M139 175H158V127H233"/>
+  <path class="edge" d="M139 175H158V251H203"/>
+  <path class="edge" d="M458 127H656"/>
+  <path class="edge" d="M396 251H424"/>
+  <path class="edge" d="M605 251H656"/>
+  <text class="note" x="550" y="117">kubectl</text>
+
+  <path class="model-edge" d="M345 154V177H928V338H550V350"/>
+  <path class="model-edge" d="M515 278V328H410V350"/>
+  <circle r="3" cx="550" cy="350" fill="#6945a3"/>
+  <circle r="3" cx="410" cy="350" fill="#6945a3"/>
+  <text class="note" x="713" y="335">HTTPS direct</text>
+  <text class="note" x="320" y="344">HTTPS via atenet-egress</text>
+
+  <rect class="box" x="20" y="151" width="119" height="48" rx="8"/>
+  <text class="label" x="79.5" y="181">Opérateur</text>
+
+  <rect class="runtime" x="234" y="101" width="224" height="53" rx="8"/>
+  <text class="label" x="346" y="123">OpenCode CLI</text>
+  <text class="note" x="346" y="142">Hôte ou conteneur durci</text>
+
+  <rect class="box" x="657" y="96" width="240" height="62" rx="8"/>
+  <text class="label" x="777" y="119">Cluster banc · K8s 1.31</text>
+  <text class="note" x="777" y="139">API Kubernetes · Pods de test</text>
+
+  <rect class="runtime" x="204" y="223" width="192" height="55" rx="8"/>
+  <text class="label" x="300" y="245">UI et contrôleur</text>
+  <text class="note" x="300" y="265">Actor en bac à sable gVisor</text>
+
+  <rect class="control" x="425" y="223" width="180" height="55" rx="8"/>
+  <text class="label" x="515" y="245">atenet-egress</text>
+  <text class="note" x="515" y="265">Sortie MCP et LLM</text>
+
+  <rect class="box" x="657" y="221" width="240" height="60" rx="8"/>
+  <text class="label" x="777" y="243">Cluster kagent · K8s 1.37</text>
+  <text class="note" x="777" y="263">Proxy MCP → API Kubernetes</text>
+
+  <rect class="runtime" x="362" y="351" width="236" height="45" rx="8"/>
+  <text class="label" x="480" y="379">OpenRouter · LLM externe</text>
+</svg>
