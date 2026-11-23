@@ -92,7 +92,7 @@ Si un pod redémarre dans le namespace `banc` du cluster `kagent`, le pod de tes
 git clone https://github.com/eazysec/agentic-ops.git
 cd agentic-ops
 read -rs LLM_API_KEY && export LLM_API_KEY
-bash opencode/install_opencode.sh --base-url "https://api.llm:8080/v1" --proxy "http://proxy.infra.acme:3128"
+bash opencode/install_opencode.sh --base-url "https://api.llm:8080/v1" --proxy "<proxy_infra>:3128"
 cd .. && opencode
 ```
 

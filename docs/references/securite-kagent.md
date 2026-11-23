@@ -54,28 +54,21 @@ Conséquences pour le durcissement :
 - un pod intrus qui atteint le port 8084 (saut 1) fait exécuter n'importe quel outil par `kagent-tools` : **d'où la
   NetworkPolicy (durcissement 2)**, qui doit autoriser `kagent` et la passerelle `atenet-egress`, et refuser le reste.
 
-### Les couches de contrôle avant ActorJWT
+### Contrôles en place avant ActorJWT
 
-Protéger un serveur d'outils ne se résume pas à une barrière. Il y a plusieurs couches, indépendantes, et il faut
-savoir ce que chacune sait faire. Le filtrage réseau, par exemple, garde la porte mais ne dit pas qui entre.
+Dans l’installation par défaut testée, `kagent-tools` acceptait les requêtes MCP sans
+authentification et utilisait un compte de service doté de droits d’administration sur le cluster.
+Le premier durcissement a réduit ces droits à la lecture, avec exclusion des Secrets. Cette limite
+s’applique à chaque opération que le serveur demande à l’API Kubernetes.
 
-| Couche | Question | Mécanisme | État par défaut | Après durcissement |
-|--------|----------|-----------|-----------------|--------------------|
-| 1. Atteignabilité réseau | qui peut **joindre** le port 8084 ? | NetworkPolicy | aucune (tout le cluster) | `kagent` + passerelle `atenet-egress` seulement |
-| 2. Authentification | **qui** appelle ? | identité applicative (jeton, mTLS/SPIFFE) | **aucune** (un pod intrus obtient `initialize` 200) | inchangé (pas d'auth sur le serveur) |
-| 3. Autorisation de l'appel | **quoi** : quels outils, quels namespaces ? | liste d'outils par agent (`mcp.tools`), `requireApproval` | définie par agent, mais **contournée** par un appel MCP direct (ne vaut que sur le chemin agent → outil) | inchangé (contournable) |
-| 4. Privilège réel d'exécution | que peut faire le serveur sur le cluster ? | RBAC du compte de service de `kagent-tools` | **administrateur du cluster** | **lecture seule, sans Secrets** |
-| 5. Sortie du bac à sable | que peut joindre l'agent ? | egress policy du Substrate | passerelle imposée | inchangé |
-| 6. Traçabilité | qu'a fait l'agent ? | interface web, OpenTelemetry | disponible | inchangé |
+La `NetworkPolicy` mise en place à cette étape limitait l’accès au port 8084 aux pods du namespace
+`kagent` et à la passerelle `atenet-egress` du namespace `ate-system`. Les appels des Agents
+arrivaient depuis cette passerelle. La politique pouvait filtrer cette source réseau, mais le
+serveur acceptait encore les requêtes des sources autorisées sans vérifier l’identité de l’Agent.
 
-2 enseignements :
-- **La couche réseau (1) garde la porte, elle ne connaît pas l'appelant.** Tous les agents arrivent par la passerelle,
-  donc une NetworkPolicy ne peut pas distinguer un agent d'un autre ni savoir « quel agent » : cela relève de la
-  couche 2 (authentification), absente par défaut.
-- **Les garde-fous « par agent » (couche 3) ne sont pas une barrière de sécurité.** Liste d'outils et validation
-  humaine ne s'appliquent qu'au chemin agent → outil ; un appel direct au serveur les ignore. La seule limite qui tient
-  contre un appelant quelconque est le **privilège réel d'exécution (couche 4), le RBAC** : c'est lui qui plafonne les
-  dégâts, quel que soit celui qui appelle. C'est pourquoi le durcissement agit d'abord sur la couche 4, puis sur la 1.
+La liste d’outils `mcp.tools` et la validation humaine `requireApproval` encadrent les appels
+gérés par kagent. Une requête qui atteint directement le serveur MCP échappe à ces règles côté
+client. Ses opérations Kubernetes restent soumises au RBAC du compte de service de `kagent-tools`.
 
 ## 2. Risque constaté (installation par défaut, 2026-11-21)
 
